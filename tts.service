@@ -1,0 +1,22 @@
+[Unit]
+Description=TTS API Service
+After=network.target sound.target
+
+[Service]
+User=pi
+Group=pi
+WorkingDirectory=/home/pi/tts_api
+Environment="XDG_RUNTIME_DIR=/run/user/1000"
+Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+ExecStart=/home/pi/tts_api/.venv/bin/gunicorn \
+          --workers 1 \
+          --bind 0.0.0.0:5000 \
+          --timeout 300 \
+          --access-logfile - \
+          --error-logfile - \
+          run:app
+
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
