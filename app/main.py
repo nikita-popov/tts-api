@@ -4,7 +4,7 @@ from app.tts import tts_engine
 
 app = Flask(__name__)
 
-# Настройка Swagger
+# Setup Swagger
 swagger_config = {
     "headers": [],
     "specs": [
@@ -25,7 +25,7 @@ swagger = Swagger(app)
 @app.route('/v1/speak', methods=['POST'])
 def speak():
     """
-    Генерация и воспроизведение речи
+    Speech generation and reproduction
     ---
     tags:
       - TTS
@@ -48,23 +48,28 @@ def speak():
             voice:
               type: string
               default: af_heart
-              description: Идентификатор голоса из voices.json
+              description: Voice ID
+            output:
+              type: string
+              default: playback
+              description: Type of generated data.
     responses:
       200:
-        description: Речь воспроизведена успешно
+        description: Speech was played back successfully
       500:
-        description: Ошибка генерации
+        description: Generation error
     """
     data = request.json
     text = data.get('text')
     lang = data.get('lang', 'en')
     voice = data.get('voice', 'af_heart')
+    output = data.get('output', 'playback')
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        tts_engine.speak(text, lang=lang, voice=voice)
+        tts_engine.speak(text, lang=lang, voice=voice, output=output)
         return jsonify({"status": "success", "message": "Playback finished"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -73,13 +78,13 @@ def speak():
 @app.route('/v1/languages', methods=['GET'])
 def get_languages():
     """
-    Получить список доступных языков
+    Get a list of available languages
     ---
     tags:
       - Languages
     responses:
       200:
-        description: Список поддерживаемых языков
+        description: List of supported languages
         schema:
           type: object
           properties:
@@ -105,7 +110,7 @@ def get_languages():
 @app.route('/v1/voices', methods=['GET'])
 def get_voices():
     """
-    Получить список доступных голосов для языка
+    Get a list of available voices for a language
     ---
     tags:
       - Voices
@@ -118,7 +123,7 @@ def get_voices():
         enum: [en, ja, ru]
     responses:
       200:
-        description: Список голосов для указанного языка
+        description: List of voices for the specified language
         schema:
           type: object
           properties:
@@ -140,7 +145,7 @@ def get_voices():
                     type: string
                     example: en
       400:
-        description: Не указан параметр lang
+        description: The lang parameter is not specified
     """
     lang = request.args.get('lang')
 
@@ -160,13 +165,13 @@ def get_voices():
 @app.route('/v1/health', methods=['GET'])
 def health():
     """
-    Проверка работоспособности сервиса
+    Service health check
     ---
     tags:
       - Health
     responses:
       200:
-        description: Сервис работает
+        description: Service OK
         schema:
           type: object
           properties:

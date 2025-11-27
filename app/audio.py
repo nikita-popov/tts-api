@@ -4,17 +4,25 @@ import numpy as np
 class AudioService:
     def __init__(self, sample_rate=24000):
         self.sample_rate = sample_rate
-        # Инициализация аудио (можно выбрать устройство через sd.default.device)
+        # Audio initialization (you can select a device via sd.default.device)
         sd.default.samplerate = self.sample_rate
 
-    def play(self, audio_data):
+    def play(self, audio_data, output):
         """
-        Воспроизводит аудиоданные. Блокирует выполнение до конца проигрывания куска.
+        Plays audio data. Blocks execution until the end of the playback of the piece.
         """
         if audio_data is None or len(audio_data) == 0:
             return
-        # Kokoro возвращает float32, sounddevice их понимает
-        sd.play(audio_data, self.sample_rate, blocking=True)
+        # Kokoro returns float32, sounddevice understands them
+        if output_format == 'file':
+            output_dir = 'audio_outputs'
+            os.makedirs(output_dir, exist_ok=True)
+            file_path = os.path.join(output_dir, f'{uuid.uuid4()}.wav')
+            sf.write(file_path, audio_data, 24000)
+            return jsonify({"status": "ok", "file_path": file_path})
+        else:
+            sd.play(audio_data, self.sample_rate, blocking=True)
+            return jsonify({"status": "ok", "file_path": None})
 
-# Глобальный инстанс
+# Global
 audio_service = AudioService()
