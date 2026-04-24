@@ -44,25 +44,7 @@ sudo apt-get install libportaudio2 espeak-ng
 
 ### 2. Download model files
 
-Place files into the `models/` directory.
-
-#### Kokoro (English, Japanese, …)
-
-| File | Source |
-|---|---|
-| `kokoro-v1.0.onnx` | [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx) |
-| `voices-v1.0.bin` | [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin) |
-| `config.json` | [Kokoro-82M-v1.1-zh on HuggingFace](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh/raw/main/config.json) |
-
-#### Piper (ru-piper fallback)
-
-```bash
-cd models
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx
-wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx.json
-```
-
-> Silero model (~50 MB) is downloaded automatically via `torch.hub` on first use.
+See [`models/README.md`](models/README.md) for download instructions.
 
 ### 3. Python environment
 
