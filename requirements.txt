@@ -1,8 +1,9 @@
+espeak-phonemizer==1.3.1
 flasgger==0.9.7.1
-flask==3.1.2
-gunicorn==23.0.0
-kokoro-onnx==0.4.9
-mcp[cli]
+Flask==3.1.3
+gunicorn==25.3.0
+kokoro-onnx==0.5.0
+mcp[cli]==1.27.0
 misaki[ja,zh]==0.7.4
-onnxruntime==1.23.2
-sounddevice==0.5.3
+onnxruntime==1.25.0
+sounddevice==0.5.5
