@@ -8,11 +8,11 @@ from app.config import DEFAULT_VOICE, DEFAULT_LANG, DEFAULT_OUTPUT
 
 logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 
-mcp = FastMCP("tts-api")
+mcp = FastMCP("tts-mcp")
 
 
 @mcp.tool()
-def speak(
+def tts_speak(
     text: str,
     lang: str = DEFAULT_LANG,
     voice: str = DEFAULT_VOICE,
@@ -35,13 +35,13 @@ def speak(
 
 
 @mcp.tool()
-def list_voices(lang: str = DEFAULT_LANG) -> list:
+def tts_list_voices(lang: str = DEFAULT_LANG) -> list:
     """List available voices for the given language code."""
     return tts_engine.get_voices_for_language(lang)
 
 
 @mcp.tool()
-def list_languages() -> list:
+def tts_list_languages() -> list:
     """List supported language codes."""
     return tts_engine.get_available_languages()
 
