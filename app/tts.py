@@ -9,14 +9,16 @@ from app.config import (
 logger = logging.getLogger(__name__)
 
 _KOKORO_LANGS = {"en", "br", "ja", "zh", "es", "fr", "hi", "it", "pt"}
-_PIPER_LANGS  = {"ru"}
+_PIPER_LANGS  = {"ru-piper"}
+_SILERO_LANGS = {"ru"}
 _G2P_LANGS    = {"ja"}
 
 AVAILABLE_LANGUAGES = [
-    {"code": "en", "name": "English",           "engine": "kokoro"},
-    {"code": "br", "name": "English (British)",  "engine": "kokoro"},
-    {"code": "ja", "name": "Japanese",           "engine": "kokoro"},
-    {"code": "ru", "name": "Russian",            "engine": "piper"},
+    {"code": "en",       "name": "English",           "engine": "kokoro"},
+    {"code": "br",       "name": "English (British)",  "engine": "kokoro"},
+    {"code": "ja",       "name": "Japanese",           "engine": "kokoro"},
+    {"code": "ru",       "name": "Russian (Silero)",   "engine": "silero"},
+    {"code": "ru-piper", "name": "Russian (Piper)",    "engine": "piper"},
 ]
 
 VOICES_BY_LANGUAGE = {
@@ -45,14 +47,22 @@ VOICES_BY_LANGUAGE = {
         {"id": "jm_kumo",       "name": "Kumo (Male)",         "gender": "male"},
     ],
     "ru": [
+        {"id": "aidar",   "name": "Aidar (Male)",    "gender": "male"},
+        {"id": "baya",    "name": "Baya (Female)",   "gender": "female"},
+        {"id": "kseniya", "name": "Kseniya (Female)","gender": "female"},
+        {"id": "xenia",   "name": "Xenia (Female)",  "gender": "female"},
+        {"id": "random",  "name": "Random",          "gender": "neutral"},
+    ],
+    "ru-piper": [
         {"id": "irina", "name": "Irina (Female)", "gender": "female"},
     ],
 }
 
-_g2p_cache  = {}
-_g2p_lock   = threading.Lock()
+_g2p_cache     = {}
+_g2p_lock      = threading.Lock()
 _kokoro_engine = None
 _piper_engine  = None
+_silero_engine = None
 _engine_lock   = threading.Lock()
 
 
@@ -78,6 +88,18 @@ def _get_piper():
             _piper_engine = PiperEngine(PIPER_MODEL_PATH, PIPER_CONFIG_PATH)
             logger.info("Piper engine loaded.")
     return _piper_engine
+
+
+def _get_silero():
+    global _silero_engine
+    if _silero_engine is not None:
+        return _silero_engine
+    with _engine_lock:
+        if _silero_engine is None:
+            from app.silero import SileroEngine
+            _silero_engine = SileroEngine()
+            logger.info("Silero engine loaded.")
+    return _silero_engine
 
 
 def _get_g2p(lang):
@@ -115,18 +137,24 @@ class TTSEngine:
         return any(v["id"] == voice_id for v in VOICES_BY_LANGUAGE.get(lang_code, []))
 
     def speak(self, text, lang="en", voice="af_heart", output="playback", speed=1.0):
-        all_langs = _KOKORO_LANGS | _PIPER_LANGS
+        all_langs = _KOKORO_LANGS | _PIPER_LANGS | _SILERO_LANGS
         if lang not in all_langs:
             raise ValueError(f"Language '{lang}' not supported")
 
         with _speak_lock:
-            if lang in _PIPER_LANGS:
+            if lang in _SILERO_LANGS:
+                silero = _get_silero()
+                audio = silero.synthesize(text, speaker=voice, speed=speed)
+                audio_service.play(audio, output=output,
+                                   sample_rate=silero.sample_rate)
+
+            elif lang in _PIPER_LANGS:
                 piper = _get_piper()
-                # length_scale: 1.0=normal, >1 slower, <1 faster → inverse of speed
                 length_scale = 1.0 / max(speed, 0.1)
                 audio = piper.synthesize(text, length_scale=length_scale)
                 audio_service.play(audio, output=output,
                                    sample_rate=piper.sample_rate)
+
             else:
                 kokoro = _get_kokoro()
                 if lang in _G2P_LANGS:

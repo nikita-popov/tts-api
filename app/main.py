@@ -21,6 +21,7 @@ swagger_config = {
 
 swagger = Swagger(app)
 
+
 @app.route('/v1/speak', methods=['POST'])
 def speak():
     """
@@ -39,21 +40,26 @@ def speak():
           properties:
             text:
               type: string
-              example: "Hello world."
+              example: "Привет, мир!"
             lang:
               type: string
-              enum: [en, ja, ru]
+              enum: [en, br, ja, ru, ru-piper]
               default: en
+              description: |
+                Language code. ru = Silero (recommended), ru-piper = Piper fallback
             voice:
               type: string
               default: af_heart
+              description: |
+                Voice ID. For ru: aidar, baya, kseniya, xenia, random
             output:
               type: string
+              enum: [playback, file]
               default: playback
             speed:
               type: number
               default: 1.0
-              description: Speech speed (0.5 = slow, 1.0 = normal, 2.0 = fast)
+              description: Speech speed multiplier (0.5 slow … 2.0 fast)
     responses:
       200:
         description: Speech was played back successfully
@@ -61,11 +67,11 @@ def speak():
         description: Generation error
     """
     data = request.json
-    text = data.get('text')
-    lang = data.get('lang', 'en')
-    voice = data.get('voice', 'af_heart')
+    text   = data.get('text')
+    lang   = data.get('lang', 'en')
+    voice  = data.get('voice', 'xenia' if data.get('lang') == 'ru' else 'af_heart')
     output = data.get('output', 'playback')
-    speed = float(data.get('speed', 1.0))
+    speed  = float(data.get('speed', 1.0))
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
@@ -89,8 +95,7 @@ def get_languages():
         description: List of supported languages
     """
     try:
-        languages = tts_engine.get_available_languages()
-        return jsonify({"languages": languages}), 200
+        return jsonify({"languages": tts_engine.get_available_languages()}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -107,7 +112,7 @@ def get_voices():
         name: lang
         type: string
         required: true
-        enum: [en, ja, ru]
+        enum: [en, br, ja, ru, ru-piper]
     responses:
       200:
         description: List of voices
