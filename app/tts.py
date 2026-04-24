@@ -107,11 +107,11 @@ class TTSEngine:
                 input_text = text
                 is_phonemes = False
 
+            # lang is not passed — Kokoro infers it from the voice name prefix
             audio, _ = self.model.create(
                 input_text,
                 voice=voice,
                 speed=1.0,
-                lang=LANG_MAP[lang],
                 is_phonemes=is_phonemes,
             )
             audio_service.play(audio, output=output)
