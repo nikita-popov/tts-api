@@ -1,21 +1,25 @@
 import logging
 import threading
-from kokoro_onnx import Kokoro
 from app.audio import audio_service
-from app.config import MODEL_PATH, VOICES_PATH, VOCAB_PATH
+from app.config import (
+    MODEL_PATH, VOICES_PATH, VOCAB_PATH,
+    PIPER_MODEL_PATH, PIPER_CONFIG_PATH,
+)
 
-LANG_MAP = {
-    "en": "a",
-    "br": "b",
-    "ja": "j",
-    "ru": "r",
-}
+logger = logging.getLogger(__name__)
+
+# Languages handled by Kokoro
+_KOKORO_LANGS = {"en", "br", "ja", "zh", "es", "fr", "hi", "it", "pt"}
+# Languages handled by Piper
+_PIPER_LANGS  = {"ru"}
+# Languages that need G2P pre-processing inside Kokoro
+_G2P_LANGS    = {"ja"}
 
 AVAILABLE_LANGUAGES = [
-    {"code": "en", "name": "English",          "kokoro_code": "a"},
-    {"code": "br", "name": "English (British)", "kokoro_code": "b"},
-    {"code": "ja", "name": "Japanese",          "kokoro_code": "j"},
-    {"code": "ru", "name": "Russian",           "kokoro_code": "r"},
+    {"code": "en", "name": "English",           "engine": "kokoro"},
+    {"code": "br", "name": "English (British)",  "engine": "kokoro"},
+    {"code": "ja", "name": "Japanese",           "engine": "kokoro"},
+    {"code": "ru", "name": "Russian",            "engine": "piper"},
 ]
 
 VOICES_BY_LANGUAGE = {
@@ -32,29 +36,54 @@ VOICES_BY_LANGUAGE = {
         {"id": "bm_george",   "name": "George (British Male)",     "gender": "male"},
         {"id": "bm_lewis",    "name": "Lewis (British Male)",      "gender": "male"},
     ],
+    "br": [
+        {"id": "bf_emma",     "name": "Emma (Female)",  "gender": "female"},
+        {"id": "bf_isabella", "name": "Isabella (Female)", "gender": "female"},
+        {"id": "bm_george",   "name": "George (Male)",  "gender": "male"},
+        {"id": "bm_lewis",    "name": "Lewis (Male)",   "gender": "male"},
+    ],
     "ja": [
         {"id": "jf_alpha",      "name": "Alpha (Female)",      "gender": "female"},
         {"id": "jf_gongitsune", "name": "Gongitsune (Female)", "gender": "female"},
         {"id": "jm_kumo",       "name": "Kumo (Male)",         "gender": "male"},
     ],
     "ru": [
-        {"id": "af_heart", "name": "Heart (Female)", "gender": "female"},
-        {"id": "af_bella", "name": "Bella (Female)", "gender": "female"},
-        {"id": "am_adam",  "name": "Adam (Male)",    "gender": "male"},
+        {"id": "irina", "name": "Irina (Female)", "gender": "female"},
     ],
 }
 
-# Languages that require G2P pre-processing
-_G2P_LANGS = {"ja"}
+_g2p_cache  = {}
+_g2p_lock   = threading.Lock()
+_kokoro_engine = None
+_piper_engine  = None
+_engine_lock   = threading.Lock()
 
-logger = logging.getLogger(__name__)
 
-_g2p_cache = {}
-_g2p_lock = threading.Lock()
+def _get_kokoro():
+    global _kokoro_engine
+    if _kokoro_engine is not None:
+        return _kokoro_engine
+    with _engine_lock:
+        if _kokoro_engine is None:
+            from kokoro_onnx import Kokoro
+            _kokoro_engine = Kokoro(MODEL_PATH, VOICES_PATH, vocab_config=VOCAB_PATH)
+            logger.info("Kokoro engine loaded.")
+    return _kokoro_engine
+
+
+def _get_piper():
+    global _piper_engine
+    if _piper_engine is not None:
+        return _piper_engine
+    with _engine_lock:
+        if _piper_engine is None:
+            from app.piper import PiperEngine
+            _piper_engine = PiperEngine(PIPER_MODEL_PATH, PIPER_CONFIG_PATH)
+            logger.info("Piper engine loaded.")
+    return _piper_engine
 
 
 def _get_g2p(lang):
-    """Lazy-load G2P engine for the given language."""
     if lang in _g2p_cache:
         return _g2p_cache[lang]
     with _g2p_lock:
@@ -66,16 +95,13 @@ def _get_g2p(lang):
         else:
             raise ValueError(f"No G2P engine for language '{lang}'")
         _g2p_cache[lang] = engine
-        return engine
+    return _g2p_cache[lang]
+
+
+_speak_lock = threading.Lock()
 
 
 class TTSEngine:
-    def __init__(self, model_path, voices_path, vocab_path):
-        logger.info("Loading Kokoro model from %s...", model_path)
-        self.model = Kokoro(model_path, voices_path, vocab_config=vocab_path)
-        self.lock = threading.Lock()
-        logger.info("Model loaded.")
-
     def get_available_languages(self):
         return AVAILABLE_LANGUAGES
 
@@ -92,26 +118,32 @@ class TTSEngine:
         return any(v["id"] == voice_id for v in VOICES_BY_LANGUAGE.get(lang_code, []))
 
     def speak(self, text, lang="en", voice="af_heart", output="playback"):
-        """Generate and play speech. Blocks until playback is done."""
-        if lang not in LANG_MAP:
+        all_langs = _KOKORO_LANGS | _PIPER_LANGS
+        if lang not in all_langs:
             raise ValueError(f"Language '{lang}' not supported")
 
-        with self.lock:
-            if lang in _G2P_LANGS:
-                g2p = _get_g2p(lang)
-                input_text = g2p(text)
-                is_phonemes = True
+        with _speak_lock:
+            if lang in _PIPER_LANGS:
+                piper = _get_piper()
+                audio = piper.synthesize(text)
+                audio_service.play(audio, output=output,
+                                   sample_rate=piper.sample_rate)
             else:
-                input_text = text
-                is_phonemes = False
+                kokoro = _get_kokoro()
+                if lang in _G2P_LANGS:
+                    g2p = _get_g2p(lang)
+                    input_text = g2p(text)
+                    is_phonemes = True
+                else:
+                    input_text = text
+                    is_phonemes = False
+                audio, _ = kokoro.create(
+                    input_text,
+                    voice=voice,
+                    speed=1.0,
+                    is_phonemes=is_phonemes,
+                )
+                audio_service.play(audio, output=output)
 
-            audio, _ = self.model.create(
-                input_text,
-                voice=voice,
-                speed=1.0,
-                is_phonemes=is_phonemes,
-            )
-            audio_service.play(audio, output=output)
 
-
-tts_engine = TTSEngine(MODEL_PATH, VOICES_PATH, VOCAB_PATH)
+tts_engine = TTSEngine()
