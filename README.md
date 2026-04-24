@@ -1,28 +1,38 @@
 # TTS API
 
-Text-to-speech service with two engines:
+Text-to-speech service with three engines:
+- **[Silero TTS v4](https://github.com/snakers4/silero-models)** — Russian, high quality, 48 kHz
 - **[Kokoro-ONNX](https://github.com/thewh1teagle/kokoro-onnx)** — English, Japanese and other languages
-- **[Piper](https://github.com/rhasspy/piper)** — Russian (and any other language with a Piper model)
+- **[Piper](https://github.com/rhasspy/piper)** — Russian fallback (`ru-piper`)
 
 Exposes two interfaces: a **REST API** (Flask/Gunicorn) and an **MCP server** (stdio, JSON-RPC 2.0).
 
 ## Features
 
 - Multi-engine routing — language determines the engine automatically
-- Real-time streaming TTS — audio playback starts immediately as sentences are generated
 - Sequential request processing — thread-safe lock ensures clean audio output
 - Multiple voices — gender-diverse voice options per language
+- Speed control — `speed` parameter (0.5 slow … 2.0 fast)
 - REST API — JSON endpoints with Swagger UI (`/apidocs`)
 - MCP server — native stdio transport, works with any MCP-compatible LLM client
 - Configuration via ENV variables — no hardcoded paths or defaults
 - Lazy engine loading — engines initialise on first use
 
+## Engine routing
+
+| Language | Code | Engine | Voices | Hz |
+|---|---|---|---|---|
+| English | `en`, `br` | Kokoro | af_heart, af_bella, … | 24000 |
+| Japanese | `ja` | Kokoro | jf_alpha, jm_kumo, … | 24000 |
+| Russian | `ru` | **Silero v4** | aidar, baya, kseniya, xenia, random | 48000 |
+| Russian (fallback) | `ru-piper` | Piper | irina | 22050 |
+
 ## Requirements
 
 - Python 3.8+
 - PortAudio (`libportaudio2`)
-- espeak-ng (required by Piper for phonemisation)
-- Audio output device (speakers/headphones)
+- espeak-ng (required by Piper phonemiser, used for `ru-piper`)
+- Audio output device
 
 ## Installation
 
@@ -44,11 +54,7 @@ Place files into the `models/` directory.
 | `voices-v1.0.bin` | [kokoro-onnx releases](https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin) |
 | `config.json` | [Kokoro-82M-v1.1-zh on HuggingFace](https://huggingface.co/hexgrad/Kokoro-82M-v1.1-zh/raw/main/config.json) |
 
-#### Piper (Russian)
-
-Download `ru_RU-irina-medium.onnx` and its `.json` config from the
-[Piper releases page](https://github.com/rhasspy/piper/releases) or from
-[Hugging Face](https://huggingface.co/rhasspy/piper-voices/tree/main/ru/ru_RU/irina/medium):
+#### Piper (ru-piper fallback)
 
 ```bash
 cd models
@@ -56,7 +62,7 @@ wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/irina/med
 wget https://huggingface.co/rhasspy/piper-voices/resolve/main/ru/ru_RU/irina/medium/ru_RU-irina-medium.onnx.json
 ```
 
-Any other Piper voice can be used by pointing the ENV variables to the corresponding files.
+> Silero model (~50 MB) is downloaded automatically via `torch.hub` on first use.
 
 ### 3. Python environment
 
@@ -67,8 +73,6 @@ pip install -r requirements.txt
 ```
 
 ## Configuration
-
-All settings are controlled via environment variables.
 
 | Variable | Default | Description |
 |---|---|---|
@@ -82,18 +86,6 @@ All settings are controlled via environment variables.
 | `TTS_VOICE` | `af_heart` | Default voice ID |
 | `TTS_OUTPUT` | `playback` | Output mode: `playback` or `file` |
 
-## Engine routing
-
-The engine is selected automatically by language code:
-
-| Language | Code | Engine |
-|---|---|---|
-| English | `en`, `br` | Kokoro |
-| Japanese | `ja` | Kokoro |
-| Russian | `ru` | Piper |
-
-To add another language backed by Piper, add the model files and extend `_PIPER_LANGS` in `app/tts.py`.
-
 ## Running
 
 ### REST API
@@ -103,20 +95,40 @@ source venv/bin/activate
 gunicorn -w 1 -b 0.0.0.0:5000 run:app
 ```
 
-Single worker (`-w 1`) is required to avoid audio device conflicts.
-Swagger UI is available at `http://localhost:5000/apidocs`.
+Single worker (`-w 1`) is required to avoid audio device conflicts.  
+Swagger UI: `http://localhost:5000/apidocs`
 
 ```bash
-# English (Kokoro)
+# Russian — Silero v4 (recommended)
+curl -X POST http://localhost:5000/v1/speak \
+  -H 'Content-Type: application/json' \
+  -d '{"lang": "ru", "text": "Привет, мир!", "voice": "xenia"}'
+
+# Russian — slower speech
+curl -X POST http://localhost:5000/v1/speak \
+  -H 'Content-Type: application/json' \
+  -d '{"lang": "ru", "text": "Привет!", "speed": 0.85}'
+
+# Russian — Piper fallback
+curl -X POST http://localhost:5000/v1/speak \
+  -H 'Content-Type: application/json' \
+  -d '{"lang": "ru-piper", "text": "Привет, мир!"}'
+
+# English — Kokoro
 curl -X POST http://localhost:5000/v1/speak \
   -H 'Content-Type: application/json' \
   -d '{"lang": "en", "text": "Hello, world!", "voice": "af_heart"}'
-
-# Russian (Piper)
-curl -X POST http://localhost:5000/v1/speak \
-  -H 'Content-Type: application/json' \
-  -d '{"lang": "ru", "text": "Привет, мир!"}'
 ```
+
+#### Request parameters
+
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `text` | string | **required** | Text to synthesize |
+| `lang` | string | `en` | Language code |
+| `voice` | string | `xenia` / `af_heart` | Voice ID |
+| `output` | string | `playback` | `playback` or `file` |
+| `speed` | float | `1.0` | Speed multiplier (0.5 … 2.0) |
 
 ### MCP server
 
@@ -134,10 +146,8 @@ Configure your MCP client:
       "command": "/path/to/tts-api/venv/bin/python",
       "args": ["/path/to/tts-api/mcp.py"],
       "env": {
-        "TTS_LANG": "en",
-        "TTS_VOICE": "af_heart",
-        "PIPER_MODEL_PATH": "/path/to/tts-api/models/ru_RU-irina-medium.onnx",
-        "PIPER_CONFIG_PATH": "/path/to/tts-api/models/ru_RU-irina-medium.onnx.json"
+        "TTS_LANG": "ru",
+        "TTS_VOICE": "xenia"
       }
     }
   }
@@ -148,7 +158,7 @@ Configure your MCP client:
 
 | Tool | Arguments | Description |
 |---|---|---|
-| `speak` | `text`, `lang?`, `voice?`, `output?` | Synthesize and play speech; returns immediately |
+| `speak` | `text`, `lang?`, `voice?`, `output?`, `speed?` | Synthesize and play speech |
 | `list_voices` | `lang?` | List voices for a language |
 | `list_languages` | — | List supported language codes and engines |
 
@@ -158,7 +168,8 @@ Configure your MCP client:
 [Service]
 User=your_username
 WorkingDirectory=/path/to/tts-api
-Environment=TTS_LANG=en
+Environment=TTS_LANG=ru
+Environment=TTS_VOICE=xenia
 Environment=PIPER_MODEL_PATH=/path/to/tts-api/models/ru_RU-irina-medium.onnx
 Environment=PIPER_CONFIG_PATH=/path/to/tts-api/models/ru_RU-irina-medium.onnx.json
 ExecStart=/path/to/tts-api/venv/bin/gunicorn -w 1 -b 0.0.0.0:5000 run:app
@@ -173,13 +184,15 @@ sudo systemctl enable --now tts.service
 
 ## License
 
-Source code: MIT.
-Kokoro-82M model: Apache 2.0 — see the [official repository](https://huggingface.co/hexgrad/Kokoro-82M).
+Source code: MIT.  
+Kokoro-82M model: Apache 2.0 — see [official repository](https://huggingface.co/hexgrad/Kokoro-82M).  
+Silero models: MIT — see [snakers4/silero-models](https://github.com/snakers4/silero-models).  
 Piper voices: various open licenses — see individual model cards on [Hugging Face](https://huggingface.co/rhasspy/piper-voices).
 
 ## Credits
 
+- [Silero TTS](https://github.com/snakers4/silero-models) — high-quality Russian TTS by snakers4
 - [Kokoro-82M](https://huggingface.co/hexgrad/Kokoro-82M) — TTS model by hexgrad
 - [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) — ONNX runtime implementation
 - [Piper](https://github.com/rhasspy/piper) — fast local TTS by rhasspy
-- [espeak-ng](https://github.com/espeak-ng/espeak-ng) — phonemisation for Piper
+- [espeak-ng](https://github.com/espeak-ng/espeak-ng) — phonemisation backend
