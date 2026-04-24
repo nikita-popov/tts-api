@@ -33,9 +33,9 @@ VOICES_BY_LANGUAGE = {
         {"id": "bm_lewis",    "name": "Lewis (British Male)",      "gender": "male"},
     ],
     "ja": [
-        {"id": "jf_alpha",   "name": "Alpha (Female)",  "gender": "female"},
+        {"id": "jf_alpha",      "name": "Alpha (Female)",      "gender": "female"},
         {"id": "jf_gongitsune", "name": "Gongitsune (Female)", "gender": "female"},
-        {"id": "jm_kumo",    "name": "Kumo (Male)",     "gender": "male"},
+        {"id": "jm_kumo",       "name": "Kumo (Male)",         "gender": "male"},
     ],
     "ru": [
         {"id": "af_heart", "name": "Heart (Female)", "gender": "female"},
@@ -99,8 +99,7 @@ class TTSEngine:
         with self.lock:
             if lang in _G2P_LANGS:
                 g2p = _get_g2p(lang)
-                phonemes, _ = g2p(text)
-                input_text = phonemes
+                input_text = g2p(text)
                 is_phonemes = True
             else:
                 input_text = text
