@@ -46,6 +46,9 @@ VOICES_BY_LANGUAGE = {
     ],
 }
 
+# Languages that require G2P pre-processing
+_G2P_LANGS = {"ja"}
+
 logger = logging.getLogger(__name__)
 
 _g2p_cache = {}
@@ -63,7 +66,7 @@ def _get_g2p(lang):
             from misaki import ja
             engine = ja.G2P(fallback="espeak-ng")
         else:
-            raise ValueError(f"Language '{lang}' not supported")
+            raise ValueError(f"No G2P engine for language '{lang}'")
         _g2p_cache[lang] = engine
         return engine
 
@@ -92,15 +95,24 @@ class TTSEngine:
 
     def speak(self, text, lang="en", voice="af_heart", output="playback"):
         """Generate and play speech. Blocks until playback is done."""
-        g2p = _get_g2p(lang)
+        if lang not in LANG_MAP:
+            raise ValueError(f"Language '{lang}' not supported")
 
         with self.lock:
-            phonemes = g2p(text)
+            if lang in _G2P_LANGS:
+                g2p = _get_g2p(lang)
+                input_text = g2p(text)
+                is_phonemes = True
+            else:
+                input_text = text
+                is_phonemes = False
+
             audio, _ = self.model.create(
-                phonemes,
+                input_text,
                 voice=voice,
                 speed=1.0,
-                is_phonemes=True,
+                lang=LANG_MAP[lang],
+                is_phonemes=is_phonemes,
             )
             audio_service.play(audio, output=output)
 
