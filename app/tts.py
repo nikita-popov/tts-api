@@ -8,11 +8,8 @@ from app.config import (
 
 logger = logging.getLogger(__name__)
 
-# Languages handled by Kokoro
 _KOKORO_LANGS = {"en", "br", "ja", "zh", "es", "fr", "hi", "it", "pt"}
-# Languages handled by Piper
 _PIPER_LANGS  = {"ru"}
-# Languages that need G2P pre-processing inside Kokoro
 _G2P_LANGS    = {"ja"}
 
 AVAILABLE_LANGUAGES = [
@@ -37,10 +34,10 @@ VOICES_BY_LANGUAGE = {
         {"id": "bm_lewis",    "name": "Lewis (British Male)",      "gender": "male"},
     ],
     "br": [
-        {"id": "bf_emma",     "name": "Emma (Female)",  "gender": "female"},
+        {"id": "bf_emma",     "name": "Emma (Female)",    "gender": "female"},
         {"id": "bf_isabella", "name": "Isabella (Female)", "gender": "female"},
-        {"id": "bm_george",   "name": "George (Male)",  "gender": "male"},
-        {"id": "bm_lewis",    "name": "Lewis (Male)",   "gender": "male"},
+        {"id": "bm_george",   "name": "George (Male)",    "gender": "male"},
+        {"id": "bm_lewis",    "name": "Lewis (Male)",     "gender": "male"},
     ],
     "ja": [
         {"id": "jf_alpha",      "name": "Alpha (Female)",      "gender": "female"},
@@ -117,7 +114,7 @@ class TTSEngine:
     def validate_voice_for_language(self, voice_id, lang_code):
         return any(v["id"] == voice_id for v in VOICES_BY_LANGUAGE.get(lang_code, []))
 
-    def speak(self, text, lang="en", voice="af_heart", output="playback"):
+    def speak(self, text, lang="en", voice="af_heart", output="playback", speed=1.0):
         all_langs = _KOKORO_LANGS | _PIPER_LANGS
         if lang not in all_langs:
             raise ValueError(f"Language '{lang}' not supported")
@@ -125,7 +122,9 @@ class TTSEngine:
         with _speak_lock:
             if lang in _PIPER_LANGS:
                 piper = _get_piper()
-                audio = piper.synthesize(text)
+                # length_scale: 1.0=normal, >1 slower, <1 faster → inverse of speed
+                length_scale = 1.0 / max(speed, 0.1)
+                audio = piper.synthesize(text, length_scale=length_scale)
                 audio_service.play(audio, output=output,
                                    sample_rate=piper.sample_rate)
             else:
@@ -140,7 +139,7 @@ class TTSEngine:
                 audio, _ = kokoro.create(
                     input_text,
                     voice=voice,
-                    speed=1.0,
+                    speed=speed,
                     is_phonemes=is_phonemes,
                 )
                 audio_service.play(audio, output=output)

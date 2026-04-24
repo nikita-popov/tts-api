@@ -4,7 +4,6 @@ from app.tts import tts_engine
 
 app = Flask(__name__)
 
-# Setup Swagger
 swagger_config = {
     "headers": [],
     "specs": [
@@ -40,7 +39,7 @@ def speak():
           properties:
             text:
               type: string
-              example: "Hello world. This is a real-time test."
+              example: "Hello world."
             lang:
               type: string
               enum: [en, ja, ru]
@@ -48,11 +47,13 @@ def speak():
             voice:
               type: string
               default: af_heart
-              description: Voice ID
             output:
               type: string
               default: playback
-              description: Type of generated data.
+            speed:
+              type: number
+              default: 1.0
+              description: Speech speed (0.5 = slow, 1.0 = normal, 2.0 = fast)
     responses:
       200:
         description: Speech was played back successfully
@@ -64,12 +65,13 @@ def speak():
     lang = data.get('lang', 'en')
     voice = data.get('voice', 'af_heart')
     output = data.get('output', 'playback')
+    speed = float(data.get('speed', 1.0))
 
     if not text:
         return jsonify({"error": "No text provided"}), 400
 
     try:
-        tts_engine.speak(text, lang=lang, voice=voice, output=output)
+        tts_engine.speak(text, lang=lang, voice=voice, output=output, speed=speed)
         return jsonify({"status": "success", "message": "Playback finished"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -85,20 +87,6 @@ def get_languages():
     responses:
       200:
         description: List of supported languages
-        schema:
-          type: object
-          properties:
-            languages:
-              type: array
-              items:
-                type: object
-                properties:
-                  code:
-                    type: string
-                    example: en
-                  name:
-                    type: string
-                    example: English
     """
     try:
         languages = tts_engine.get_available_languages()
@@ -119,45 +107,19 @@ def get_voices():
         name: lang
         type: string
         required: true
-        description: Код языка (en, ja, ru)
         enum: [en, ja, ru]
     responses:
       200:
-        description: List of voices for the specified language
-        schema:
-          type: object
-          properties:
-            language:
-              type: string
-              example: en
-            voices:
-              type: array
-              items:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    example: af_heart
-                  name:
-                    type: string
-                    example: Heart
-                  language:
-                    type: string
-                    example: en
+        description: List of voices
       400:
         description: The lang parameter is not specified
     """
     lang = request.args.get('lang')
-
     if not lang:
         return jsonify({"error": "Language parameter 'lang' is required"}), 400
-
     try:
         voices = tts_engine.get_voices_for_language(lang)
-        return jsonify({
-            "language": lang,
-            "voices": voices
-        }), 200
+        return jsonify({"language": lang, "voices": voices}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -172,20 +134,8 @@ def health():
     responses:
       200:
         description: Service OK
-        schema:
-          type: object
-          properties:
-            status:
-              type: string
-              example: ok
-            model:
-              type: string
-              example: kokoro-v1.0
     """
-    return jsonify({
-        "status": "ok",
-        "model": "kokoro-v1.0"
-    }), 200
+    return jsonify({"status": "ok", "model": "kokoro-v1.0"}), 200
 
 
 if __name__ == '__main__':
