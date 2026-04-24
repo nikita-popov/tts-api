@@ -2,7 +2,6 @@ import json
 import logging
 import numpy as np
 import onnxruntime as ort
-from phonemizer import phonemize
 from phonemizer.backend import EspeakBackend
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,6 @@ class PiperEngine:
         self._espeak_voice = self.config.get("espeak", {}).get("voice", "ru")
         self._phoneme_to_id = self.config["phoneme_id_map"]
         self._num_speakers = self.config.get("num_speakers", 1)
-        # Pre-init espeak backend once (avoids repeated initialisation overhead)
         self._backend = EspeakBackend(
             self._espeak_voice,
             with_stress=True,
@@ -40,7 +38,6 @@ class PiperEngine:
         """Phonemize text and convert to Piper phoneme id sequence."""
         phonemes = self._backend.phonemize([text], njobs=1)[0]
         p2i = self._phoneme_to_id
-        pad = p2i.get("_", [0])[0]
         bos = p2i.get("^", [1])[0]
         eos = p2i.get("$", [2])[0]
         ids = [bos]
@@ -51,7 +48,11 @@ class PiperEngine:
 
     def synthesize(self, text, speaker_id=0, length_scale=1.0,
                    noise_scale=0.667, noise_w=0.8):
-        """Return float32 numpy array normalised to [-1, 1]."""
+        """Return float32 numpy array in [-1, 1] ready for sounddevice/soundfile.
+
+        Piper ONNX models output raw float32 audio directly — no int16 conversion
+        needed. The /32768 normalisation applied to raw int16 must NOT be used here.
+        """
         phoneme_ids = self._text_to_ids(text)
         inputs = {
             "input":         np.array([phoneme_ids], dtype=np.int64),
@@ -62,5 +63,6 @@ class PiperEngine:
         if self._num_speakers > 1:
             inputs["sid"] = np.array([speaker_id], dtype=np.int64)
 
-        audio = self.sess.run(None, inputs)[0].squeeze()
-        return (audio / 32768.0).astype(np.float32)
+        audio = self.sess.run(None, inputs)[0].squeeze().astype(np.float32)
+        # Clip to [-1, 1] to guard against rare OOB values from the model
+        return np.clip(audio, -1.0, 1.0)
