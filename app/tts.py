@@ -33,11 +33,9 @@ VOICES_BY_LANGUAGE = {
         {"id": "bm_lewis",    "name": "Lewis (British Male)",      "gender": "male"},
     ],
     "ja": [
-        {"id": "af_heart",   "name": "Heart (Female)",  "gender": "female"},
-        {"id": "af_bella",   "name": "Bella (Female)",  "gender": "female"},
-        {"id": "af_sarah",   "name": "Sarah (Female)",  "gender": "female"},
-        {"id": "am_adam",    "name": "Adam (Male)",     "gender": "male"},
-        {"id": "am_michael", "name": "Michael (Male)",  "gender": "male"},
+        {"id": "jf_alpha",   "name": "Alpha (Female)",  "gender": "female"},
+        {"id": "jf_gongitsune", "name": "Gongitsune (Female)", "gender": "female"},
+        {"id": "jm_kumo",    "name": "Kumo (Male)",     "gender": "male"},
     ],
     "ru": [
         {"id": "af_heart", "name": "Heart (Female)", "gender": "female"},
@@ -63,8 +61,8 @@ def _get_g2p(lang):
         if lang in _g2p_cache:
             return _g2p_cache[lang]
         if lang == "ja":
-            from misaki import ja
-            engine = ja.G2P(fallback="espeak-ng")
+            from misaki.ja import JAG2P
+            engine = JAG2P()
         else:
             raise ValueError(f"No G2P engine for language '{lang}'")
         _g2p_cache[lang] = engine
@@ -101,13 +99,13 @@ class TTSEngine:
         with self.lock:
             if lang in _G2P_LANGS:
                 g2p = _get_g2p(lang)
-                input_text = g2p(text)
+                phonemes, _ = g2p(text)
+                input_text = phonemes
                 is_phonemes = True
             else:
                 input_text = text
                 is_phonemes = False
 
-            # lang is not passed — Kokoro infers it from the voice name prefix
             audio, _ = self.model.create(
                 input_text,
                 voice=voice,
