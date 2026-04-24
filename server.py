@@ -11,7 +11,7 @@ logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 mcp = FastMCP("tts-api")
 
 
-@mcp.tool
+@mcp.tool()
 def speak(
     text: str,
     lang: str = DEFAULT_LANG,
@@ -34,13 +34,13 @@ def speak(
     return "speaking"
 
 
-@mcp.tool
+@mcp.tool()
 def list_voices(lang: str = DEFAULT_LANG) -> list:
     """List available voices for the given language code."""
     return tts_engine.get_voices_for_language(lang)
 
 
-@mcp.tool
+@mcp.tool()
 def list_languages() -> list:
     """List supported language codes."""
     return tts_engine.get_available_languages()
