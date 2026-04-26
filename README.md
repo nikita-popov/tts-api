@@ -34,6 +34,9 @@ Exposes two interfaces: a **REST API** (Flask/Gunicorn) and an **MCP server** (s
 - espeak-ng (required by Piper phonemiser, used for `ru-piper`)
 - Audio output device
 
+> **Note:** Silero model is downloaded automatically via `torch.hub` on first run
+> and cached in `~/.cache/torch/hub`. Internet access is required once.
+
 ## Installation
 
 ### 1. System dependencies
@@ -64,8 +67,8 @@ pip install -r requirements.txt
 | `TTS_SAMPLE_RATE` | `24000` | Kokoro audio sample rate |
 | `PIPER_MODEL_PATH` | `models/ru_RU-irina-medium.onnx` | Piper ONNX model |
 | `PIPER_CONFIG_PATH` | `models/ru_RU-irina-medium.onnx.json` | Piper model config |
-| `TTS_LANG` | `en` | Default language code |
-| `TTS_VOICE` | `af_heart` | Default voice ID |
+| `TTS_LANG` | `ru` | Default language code |
+| `TTS_VOICE` | `xenia` | Default voice ID |
 | `TTS_OUTPUT` | `playback` | Output mode: `playback` or `file` |
 
 ## Running
@@ -81,15 +84,15 @@ Single worker (`-w 1`) is required to avoid audio device conflicts.
 Swagger UI: `http://localhost:5000/apidocs`
 
 ```bash
-# Russian — Silero v4 (recommended)
+# Russian — Silero v4 (default)
 curl -X POST http://localhost:5000/v1/speak \
   -H 'Content-Type: application/json' \
-  -d '{"lang": "ru", "text": "Привет, мир!", "voice": "xenia"}'
+  -d '{"text": "Привет, мир!"}'
 
 # Russian — slower speech
 curl -X POST http://localhost:5000/v1/speak \
   -H 'Content-Type: application/json' \
-  -d '{"lang": "ru", "text": "Привет!", "speed": 0.85}'
+  -d '{"text": "Привет!", "speed": 0.85}'
 
 # Russian — Piper fallback
 curl -X POST http://localhost:5000/v1/speak \
@@ -107,8 +110,8 @@ curl -X POST http://localhost:5000/v1/speak \
 | Parameter | Type | Default | Description |
 |---|---|---|---|
 | `text` | string | **required** | Text to synthesize |
-| `lang` | string | `en` | Language code |
-| `voice` | string | `xenia` / `af_heart` | Voice ID |
+| `lang` | string | `ru` | Language code |
+| `voice` | string | `xenia` | Voice ID |
 | `output` | string | `playback` | `playback` or `file` |
 | `speed` | float | `1.0` | Speed multiplier (0.5 … 2.0) |
 
@@ -116,7 +119,7 @@ curl -X POST http://localhost:5000/v1/speak \
 
 ```bash
 source venv/bin/activate
-python mcp.py
+python server.py
 ```
 
 Configure your MCP client:
@@ -126,11 +129,7 @@ Configure your MCP client:
   "mcpServers": {
     "tts": {
       "command": "/path/to/tts-api/venv/bin/python",
-      "args": ["/path/to/tts-api/mcp.py"],
-      "env": {
-        "TTS_LANG": "ru",
-        "TTS_VOICE": "xenia"
-      }
+      "args": ["/path/to/tts-api/server.py"]
     }
   }
 }
@@ -140,9 +139,9 @@ Configure your MCP client:
 
 | Tool | Arguments | Description |
 |---|---|---|
-| `speak` | `text`, `lang?`, `voice?`, `output?`, `speed?` | Synthesize and play speech |
-| `list_voices` | `lang?` | List voices for a language |
-| `list_languages` | — | List supported language codes and engines |
+| `tts_speak` | `text`, `lang?`, `voice?`, `output?`, `speed?` | Synthesize and play speech |
+| `tts_list_voices` | `lang?` | List voices for a language |
+| `tts_list_languages` | — | List supported language codes and engines |
 
 ## Systemd (REST API)
 
@@ -150,10 +149,6 @@ Configure your MCP client:
 [Service]
 User=your_username
 WorkingDirectory=/path/to/tts-api
-Environment=TTS_LANG=ru
-Environment=TTS_VOICE=xenia
-Environment=PIPER_MODEL_PATH=/path/to/tts-api/models/ru_RU-irina-medium.onnx
-Environment=PIPER_CONFIG_PATH=/path/to/tts-api/models/ru_RU-irina-medium.onnx.json
 ExecStart=/path/to/tts-api/venv/bin/gunicorn -w 1 -b 0.0.0.0:5000 run:app
 Restart=on-failure
 ```
