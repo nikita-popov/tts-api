@@ -1,6 +1,11 @@
 import logging
+import warnings
 import torch
 import numpy as np
+
+# NNPACK is an optional conv acceleration; harmless if unavailable.
+# Suppress the noisy per-thread warnings it emits on unsupported CPUs.
+warnings.filterwarnings("ignore", message="Could not initialize NNPACK")
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +38,7 @@ class SileroEngine:
         Args:
             text:    Input text (Russian)
             speaker: One of aidar / baya / kseniya / xenia / random
-            speed:   Speech rate multiplier (0.5 slow … 2.0 fast)
+            speed:   Speech rate multiplier (0.5 slow ... 2.0 fast)
         """
         if speaker not in SILERO_RU_SPEAKERS:
             logger.warning("Unknown speaker '%s', falling back to 'xenia'", speaker)
