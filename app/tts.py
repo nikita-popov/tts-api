@@ -80,9 +80,8 @@ class TTSEngine:
         elif lang in _PIPER_LANGS:
             result = _predict(GONNX_PIPER, {"text": text})
         elif lang in _SILERO_LANGS:
-            result = _predict(GONNX_SILERO, {
-                "text": text, "voice": voice, "speed": speed,
-            })
+            # silero bundle inputSchema: {text} only, additionalProperties: false
+            result = _predict(GONNX_SILERO, {"text": text})
         else:
             raise ValueError(f"Unsupported language: {lang}")
 
