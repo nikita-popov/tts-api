@@ -1,32 +1,37 @@
+import base64
+import io
 import os
 import uuid
-import numpy as np
+
 import sounddevice as sd
+import soundfile as sf
+
 from app.config import SAMPLE_RATE as DEFAULT_SAMPLE_RATE
 
 
 class AudioService:
-    def play(self, audio_data, output="playback", sample_rate=None):
-        """Play audio data via sounddevice or write to file.
+    def play(self, result: dict, output: str = "playback"):
+        """Play audio from a gonnx predict response.
 
         Args:
-            audio_data:  float32 numpy array normalised to [-1, 1]
-            output:      'playback' | 'file'
-            sample_rate: override default SAMPLE_RATE (e.g. Piper uses 22050)
+            result:  dict with keys 'audio_b64' (base64 WAV) and
+                     optionally 'sample_rate'
+            output:  'playback' | 'file'
         """
-        if audio_data is None or len(audio_data) == 0:
-            return
+        audio_b64 = result.get("audio_b64")
+        if not audio_b64:
+            raise ValueError("gonnx response missing 'audio_b64'")
 
-        rate = sample_rate if sample_rate is not None else DEFAULT_SAMPLE_RATE
+        wav_bytes = base64.b64decode(audio_b64)
+        data, sample_rate = sf.read(io.BytesIO(wav_bytes), dtype="float32")
 
         if output == "file":
-            import soundfile as sf
             out_dir = "audio_outputs"
             os.makedirs(out_dir, exist_ok=True)
             file_path = os.path.join(out_dir, f"{uuid.uuid4()}.wav")
-            sf.write(file_path, audio_data, rate)
+            sf.write(file_path, data, sample_rate)
         else:
-            sd.play(audio_data.astype(np.float32), samplerate=rate)
+            sd.play(data, samplerate=sample_rate)
             sd.wait()
 
 

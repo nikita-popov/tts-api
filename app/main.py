@@ -140,7 +140,7 @@ def health():
       200:
         description: Service OK
     """
-    return jsonify({"status": "ok", "model": "kokoro-v1.0"}), 200
+    return jsonify({"status": "ok", "backend": "gonnx"}), 200
 
 
 if __name__ == '__main__':

@@ -1,6 +1,7 @@
 [Unit]
 Description=TTS API Service
-After=network.target sound.target
+After=network.target sound.target gonnx.service
+Requires=gonnx.service
 
 [Service]
 User=pi
@@ -8,6 +9,7 @@ Group=pi
 WorkingDirectory=/home/pi/tts_api
 Environment="XDG_RUNTIME_DIR=/run/user/1000"
 Environment="PULSE_SERVER=unix:/run/user/1000/pulse/native"
+Environment="GONNX_URL=http://localhost:8080"
 ExecStart=/home/pi/tts_api/.venv/bin/gunicorn \
           --workers 1 \
           --bind 0.0.0.0:5000 \

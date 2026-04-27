@@ -1,19 +1,14 @@
 import os
 
-# Kokoro
-MODEL_PATH   = os.environ.get("TTS_MODEL_PATH",  "models/kokoro-v1.0.onnx")
-VOICES_PATH  = os.environ.get("TTS_VOICES_PATH", "models/voices-v1.0.bin")
-VOCAB_PATH   = os.environ.get("TTS_VOCAB_PATH",  "models/config.json")
-SAMPLE_RATE  = int(os.environ.get("TTS_SAMPLE_RATE", "24000"))
+# gonnx daemon
+GONNX_BASE_URL = os.environ.get("GONNX_URL", "http://localhost:8080")
 
-# Piper (Russian fallback)
-PIPER_MODEL_PATH  = os.environ.get("PIPER_MODEL_PATH",  "models/ru_RU-irina-medium.onnx")
-PIPER_CONFIG_PATH = os.environ.get("PIPER_CONFIG_PATH", "models/ru_RU-irina-medium.onnx.json")
+# model names registered in gonnx
+GONNX_KOKORO  = os.environ.get("GONNX_KOKORO_MODEL",  "kokoro-tts")
+GONNX_PIPER   = os.environ.get("GONNX_PIPER_MODEL",   "piper-ru-tts")
+GONNX_SILERO  = os.environ.get("GONNX_SILERO_MODEL",  "silero-ru-tts")
 
-# Silero is loaded via torch.hub (cached in ~/.cache/torch/hub)
-# No model path needed.
-
-# Defaults
+SAMPLE_RATE    = int(os.environ.get("TTS_SAMPLE_RATE", "24000"))
 DEFAULT_LANG   = os.environ.get("TTS_LANG",   "ru")
 DEFAULT_VOICE  = os.environ.get("TTS_VOICE",  "xenia")
 DEFAULT_OUTPUT = os.environ.get("TTS_OUTPUT", "playback")
